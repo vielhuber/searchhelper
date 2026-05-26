@@ -17,7 +17,7 @@ it wraps fast host indexes instead of recursively scanning slow mounts:
 
 ## installation
 
-install once with [composer](https://getcomposer.org/):
+install once with [composer](https://getcomposer.org):
 
 ```bash
 composer require vielhuber/searchhelper
@@ -64,13 +64,10 @@ print_r($result['items']);
 
 ## everything
 
-short setup on Windows:
-
-1. install Everything.
-2. enable the HTTP server in Everything.
-3. use a fixed port, for example `8081`.
-4. set `SEARCHHELPER_EVERYTHING_URL=http://host.docker.internal:8081` when searchhelper runs in Docker.
-5. set `SEARCHHELPER_PATH_MAPPINGS` so Windows result paths can be converted to mounted Linux paths.
+1. install [Everything](https://www.voidtools.com).
+2. settings > `HTTP-Server` > enable, Port: `8081`
+3. set `SEARCHHELPER_EVERYTHING_URL=http://host.docker.internal:8081` when searchhelper runs in Docker.
+4. set `SEARCHHELPER_PATH_MAPPINGS` so Windows result paths can be converted to mounted Linux paths.
 
 when Everything returns Windows paths, `SEARCHHELPER_PATH_MAPPINGS` maps them back into the container. example:
 
