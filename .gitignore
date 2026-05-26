@@ -1,0 +1,10 @@
+/vendor/
+/node_modules/
+/.phpunit.cache/
+/.phpunit.result.cache
+/tests/output/
+/mcp-server.log
+/.env
+/.searchhelper/
+/composer.lock
+/package-lock.json

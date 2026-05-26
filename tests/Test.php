@@ -1,0 +1,123 @@
+<?php
+declare(strict_types=1);
+
+use vielhuber\searchhelper\searchhelper;
+
+final class Test extends \PHPUnit\Framework\TestCase
+{
+    private string $directory;
+    private string $path;
+
+    protected function setUp(): void
+    {
+        $this->path = (string) getenv('PATH');
+        $this->directory = sys_get_temp_dir() . '/searchhelper_' . uniqid();
+        mkdir($this->directory . '/documents/projects', 0775, true);
+        mkdir($this->directory . '/Other', 0775, true);
+        file_put_contents($this->directory . '/documents/projects/ProjectPlan.pdf', 'pdf fixture');
+        file_put_contents($this->directory . '/documents/projects/ProjectNotes.txt', 'notes fixture');
+        file_put_contents($this->directory . '/Other/Unrelated.txt', 'other fixture');
+        file_put_contents(
+            $this->directory . '/plocate',
+            "#!/bin/sh\nprintf '%s\\n' " .
+                escapeshellarg($this->directory . '/documents/projects/ProjectPlan.pdf') . ' ' .
+                escapeshellarg($this->directory . '/documents/projects/ProjectNotes.txt') . ' ' .
+                escapeshellarg($this->directory . '/Other/Unrelated.txt') . "\n"
+        );
+        chmod($this->directory . '/plocate', 0775);
+        putenv('PATH=' . $this->directory . PATH_SEPARATOR . $this->path);
+    }
+
+    protected function tearDown(): void
+    {
+        putenv('PATH=' . $this->path);
+        $this->removeDirectory($this->directory);
+    }
+
+    public function test__plocate_search_filters_allowed_root(): void
+    {
+        $search = $this->search();
+
+        $result = $search->searchFiles(
+            query: 'project notes',
+            root: $this->directory . '/documents/projects',
+            limit: 10,
+            engine: 'plocate'
+        );
+
+        $this->assertSame('plocate', $result['engine']);
+        $this->assertCount(2, $result['items']);
+        $this->assertSame('ProjectNotes.txt', $result['items'][0]['name']);
+    }
+
+    public function test__root_must_be_allowed(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->search()->searchFiles(query: 'test', root: '/not-allowed', engine: 'plocate');
+    }
+
+    public function test__status_reports_configured_engines(): void
+    {
+        $status = $this->search()->status();
+
+        $this->assertSame([$this->directory . '/documents'], $status['roots']);
+        $this->assertSame(['everything', 'plocate'], array_keys($status['engines']));
+    }
+
+    public function test__search_without_available_engines_returns_errors(): void
+    {
+        putenv('PATH=' . $this->directory . '/missing');
+        try {
+            $result = searchhelper::create([
+                'roots' => [$this->directory . '/documents'],
+                'engines' => ['everything', 'plocate'],
+                'everything_url' => '',
+                'everything_username' => '',
+                'everything_password' => '',
+                'path_mappings' => [],
+                'command_timeout' => 2
+            ])->searchFiles(query: 'project', root: $this->directory . '/documents');
+        } finally {
+            putenv('PATH=' . $this->directory . PATH_SEPARATOR . $this->path);
+        }
+
+        $this->assertNull($result['engine']);
+        $this->assertSame(0, $result['count']);
+        $this->assertSame(['everything', 'plocate'], array_keys($result['errors']));
+    }
+
+    private function search(): searchhelper
+    {
+        return searchhelper::create([
+            'roots' => [$this->directory . '/documents'],
+            'engines' => ['plocate'],
+            'everything_url' => '',
+            'everything_username' => '',
+            'everything_password' => '',
+            'path_mappings' => [
+                'C:' => '/host/data'
+            ],
+            'command_timeout' => 2
+        ]);
+    }
+
+    private function removeDirectory(string $directory): void
+    {
+        if (!is_dir($directory)) {
+            return;
+        }
+
+        $items = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($items as $item) {
+            if ($item->isDir()) {
+                rmdir($item->getPathname());
+                continue;
+            }
+            unlink($item->getPathname());
+        }
+        rmdir($directory);
+    }
+}
