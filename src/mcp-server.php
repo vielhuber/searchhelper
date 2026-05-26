@@ -23,7 +23,7 @@ if ($project_dir === false) {
     $project_dir = dirname(__DIR__);
 }
 $env_path = $project_dir . '/.env';
-if (!is_file($env_path) && @file_put_contents($env_path, "MCP_TOKEN=\n") === false) {
+if (!is_file($env_path) && file_put_contents($env_path, "MCP_TOKEN=\n") === false) {
     fwrite(STDERR, 'searchhelper-mcp-server: failed to create ' . $env_path . ' (check permissions on the project directory)' . PHP_EOL);
     exit(1);
 }
@@ -31,7 +31,7 @@ if (!is_file($env_path) && @file_put_contents($env_path, "MCP_TOKEN=\n") === fal
 new simplemcp(
     name: 'searchhelper-mcp-server',
     log: 'mcp-server.log',
-    discovery: '.',
+    discovery: __DIR__,
     auth: 'static',
     env: $env_path
 );

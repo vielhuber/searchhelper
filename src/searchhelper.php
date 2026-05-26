@@ -25,7 +25,7 @@ final class searchhelper
     #[McpTool(name: 'search_files')]
     public function searchFilesTool(string $query, ?string $root = null, ?int $limit = null, ?string $engine = null): array
     {
-        return $this->searchFiles(query: $query, root: $root, limit: $limit ?? 25, engine: $engine);
+        return $this->searchFiles(query: $query, root: $root, limit: $limit ?? 100, engine: $engine);
     }
 
     #[McpTool(name: 'status')]
@@ -34,7 +34,7 @@ final class searchhelper
         return $this->status();
     }
 
-    public function searchFiles(string $query, ?string $root = null, int $limit = 25, ?string $engine = null): array
+    public function searchFiles(string $query, ?string $root = null, int $limit = 100, ?string $engine = null): array
     {
         $query = trim($query);
         if ($query === '') {
