@@ -55,7 +55,6 @@ $search = searchhelper::create();
 
 $result = $search->searchFiles(
     query: 'project notes',
-    root: '/host/data/documents',
     limit: 10
 );
 
@@ -101,7 +100,7 @@ vendor/bin/mcp-server.php
 
 available tools:
 
-- `search_files(query, root?, limit?, engine?)`
+- `search_files(query, limit?)`
 - `status()`
 
 ## tests
