@@ -312,18 +312,27 @@ final class searchhelper
             $headers[] = 'Authorization: Basic ' . base64_encode($this->config['everything_username'] . ':' . $this->config['everything_password']);
         }
 
-        $context = stream_context_create([
-            'http' => [
-                'method' => 'GET',
-                'timeout' => $this->config['command_timeout'],
-                'header' => implode("\r\n", $headers)
-            ]
+        // use curl rather than file_get_contents: host.docker.internal (and similar
+        // hosts) resolves to both IPv6 and IPv4, and file_get_contents has no
+        // happy-eyeballs — it can pick the IPv6 address first and stall the whole
+        // timeout against an IPv4-only Everything server. curl races both addresses
+        // and uses whichever connects first, so it never hangs on a dead IPv6 route.
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => max(1, (int) $this->config['command_timeout'])
         ]);
-        $result = @file_get_contents($url, false, $context);
-        if ($result === false) {
-            throw new RuntimeException('HTTP request failed: ' . $url);
+        $result = curl_exec($ch);
+        $error = curl_error($ch);
+        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if ($result === false || $status < 200 || $status >= 400) {
+            throw new RuntimeException(
+                'HTTP request failed (' . $status . ($error !== '' ? ' ' . $error : '') . '): ' . $url
+            );
         }
-        return $result;
+        return (string) $result;
     }
 
     private function runCommand(array $command): array
