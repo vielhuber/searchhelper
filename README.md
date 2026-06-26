@@ -41,12 +41,15 @@ SEARCHHELPER_EVERYTHING_URL=http://host.docker.internal:8081
 SEARCHHELPER_EVERYTHING_USERNAME=
 SEARCHHELPER_EVERYTHING_PASSWORD=
 SEARCHHELPER_PATH_MAPPINGS=C:\Data=>/host/data
+SEARCHHELPER_COMMAND_TIMEOUT=10
 MCP_TOKEN=
 ```
 
 `SEARCHHELPER_ROOTS` is the final search allowlist. Everything and plocate may index more files, but searchhelper only returns results below these roots. use focused roots like `/host/data/documents`.
 
 `SEARCHHELPER_PATH_MAPPINGS` is only needed for Everything. Everything returns Windows paths, while code running in Docker/WSL usually needs Linux paths.
+
+`SEARCHHELPER_COMMAND_TIMEOUT` (seconds, default `10`) caps each backend call — the Everything HTTP request and the `plocate` command. raise it when the Everything host is reachable but slow (e.g. under load); lower it to fail faster.
 
 ## usage
 
