@@ -68,8 +68,9 @@ print_r($result['items']);
 
 1. install [Everything](https://www.voidtools.com).
 2. settings > `HTTP-Server` > enable, Port: `8081`
-3. set `SEARCHHELPER_EVERYTHING_URL=http://host.docker.internal:8081` when searchhelper runs in Docker.
-4. set `SEARCHHELPER_PATH_MAPPINGS` so Windows result paths can be converted to mounted Linux paths.
+3. settings > `HTTP-Server` > disable logging (it does a reverse-DNS lookup per remote request, which stalls every call from Docker).
+4. set `SEARCHHELPER_EVERYTHING_URL=http://host.docker.internal:8081` when searchhelper runs in Docker.
+5. set `SEARCHHELPER_PATH_MAPPINGS` so Windows result paths can be converted to mounted Linux paths.
 
 when Everything returns Windows paths, `SEARCHHELPER_PATH_MAPPINGS` maps them back into the container. example:
 
