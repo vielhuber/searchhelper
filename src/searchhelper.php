@@ -312,15 +312,15 @@ final class searchhelper
             $headers[] = 'Authorization: Basic ' . base64_encode($this->config['everything_username'] . ':' . $this->config['everything_password']);
         }
 
-        // use curl rather than file_get_contents: host.docker.internal (and similar
-        // hosts) resolves to both IPv6 and IPv4, and file_get_contents has no
-        // happy-eyeballs — it can pick the IPv6 address first and stall the whole
-        // timeout against an IPv4-only Everything server. curl races both addresses
-        // and uses whichever connects first, so it never hangs on a dead IPv6 route.
+        // force IPv4: host.docker.internal can resolve to an IPv6 address that
+        // black-holes (Docker Desktop/WSL2 — sometimes IPv6-only), while the
+        // Everything HTTP server is reachable via IPv4. without this, curl stalls
+        // on the dead IPv6 route until the timeout.
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_TIMEOUT => max(1, (int) $this->config['command_timeout'])
         ]);
