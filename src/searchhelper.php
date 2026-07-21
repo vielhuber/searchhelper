@@ -25,7 +25,19 @@ final class searchhelper
     #[McpTool(name: 'search_files')]
     public function searchFilesTool(string $query, ?int $limit = null): array
     {
-        return $this->searchFiles(query: $query, limit: $limit ?? 100);
+        $result = $this->searchFiles(query: $query, limit: $limit ?? 100);
+        $configuredEngines = array_values(
+            array_filter(
+                array_unique(
+                    array_map(fn(mixed $engine): string => strtolower(trim((string) $engine)), $this->config['engines'])
+                ),
+                fn(string $engine): bool => $engine !== ''
+            )
+        );
+        if ($result['engine'] === null && count($result['errors']) === count($configuredEngines) && $configuredEngines !== []) {
+            throw new RuntimeException('All configured search engines failed: ' . implode(' | ', $result['errors']));
+        }
+        return $result;
     }
 
     #[McpTool(name: 'status')]

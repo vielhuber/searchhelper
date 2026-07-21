@@ -86,6 +86,22 @@ final class Test extends \PHPUnit\Framework\TestCase
         $this->assertSame(['everything', 'plocate'], array_keys($result['errors']));
     }
 
+    public function test__tool_throws_when_all_engines_fail(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('All configured search engines failed:');
+
+        searchhelper::create([
+            'roots' => [$this->directory . '/documents'],
+            'engines' => ['everything'],
+            'everything_url' => '',
+            'everything_username' => '',
+            'everything_password' => '',
+            'path_mappings' => [],
+            'command_timeout' => 2
+        ])->searchFilesTool(query: 'project');
+    }
+
     private function search(): searchhelper
     {
         return searchhelper::create([
