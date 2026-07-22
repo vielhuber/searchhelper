@@ -150,7 +150,7 @@ final class searchhelper
             if ($windows_root === null) {
                 throw new RuntimeException('Everything path mapping is missing for root: ' . $root);
             }
-            $everything_query = 'parent:"' . $windows_root . '" ' . $query;
+            $everything_query = 'path:"' . $windows_root . '" ' . $query;
 
             $url = rtrim($this->config['everything_url'], '/') . '/?' . http_build_query([
                 'search' => $everything_query,

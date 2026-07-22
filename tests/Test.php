@@ -107,6 +107,87 @@ final class Test extends \PHPUnit\Framework\TestCase
         $this->assertSame([], $result['engines']);
     }
 
+    public function test__everything_searches_nested_paths_recursively(): void
+    {
+        $router = $this->directory . '/everything.php';
+        file_put_contents(
+            $router,
+            <<<'PHP'
+<?php
+declare(strict_types=1);
+
+file_put_contents(__DIR__ . '/everything-query.txt', (string) ($_GET['search'] ?? ''));
+header('Content-Type: application/json');
+echo json_encode([
+    'results' => [[
+        'name' => 'Greenline.pdf',
+        'path' => 'C:\\Documents\\Nested',
+        'size' => 42,
+        'date_modified' => 1
+    ]]
+]);
+PHP
+        );
+        $socket = stream_socket_server('tcp://127.0.0.1:0', $errorNumber, $errorMessage);
+        $this->assertIsResource($socket, $errorMessage);
+        $address = (string) stream_socket_get_name($socket, false);
+        fclose($socket);
+        $port = (int) substr(strrchr($address, ':'), 1);
+        $pipes = [];
+        $server = proc_open(
+            [PHP_BINARY, '-S', '127.0.0.1:' . $port, $router],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w']
+            ],
+            $pipes,
+            $this->directory
+        );
+        $this->assertIsResource($server);
+
+        $ready = false;
+        set_error_handler(static fn(): bool => true);
+        try {
+            for ($attempt = 0; $attempt < 50; $attempt++) {
+                $connection = stream_socket_client('tcp://127.0.0.1:' . $port, $number, $message, 0.05);
+                if (is_resource($connection)) {
+                    fclose($connection);
+                    $ready = true;
+                    break;
+                }
+                usleep(20_000);
+            }
+        } finally {
+            restore_error_handler();
+        }
+        $this->assertTrue($ready, 'Everything test server did not start.');
+
+        try {
+            $result = searchhelper::create([
+                'roots' => [$this->directory . '/documents'],
+                'engines' => ['everything'],
+                'everything_url' => 'http://127.0.0.1:' . $port,
+                'everything_username' => '',
+                'everything_password' => '',
+                'path_mappings' => [
+                    'C:\\Documents' => $this->directory . '/documents'
+                ],
+                'command_timeout' => 2
+            ])->searchFiles(query: 'greenline');
+        } finally {
+            proc_terminate($server);
+            foreach ($pipes as $pipe) {
+                fclose($pipe);
+            }
+            proc_close($server);
+        }
+
+        $this->assertSame('path:"C:\\Documents\\" greenline', file_get_contents($this->directory . '/everything-query.txt'));
+        $this->assertSame('everything', $result['engine']);
+        $this->assertSame($this->directory . '/documents/Nested/Greenline.pdf', $result['items'][0]['path']);
+    }
+
     public function test__tool_throws_when_all_engines_fail(): void
     {
         $this->expectException(RuntimeException::class);
