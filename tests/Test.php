@@ -62,9 +62,12 @@ final class Test extends \PHPUnit\Framework\TestCase
 
         $this->assertSame([$this->directory . '/documents'], $status['roots']);
         $this->assertSame(['everything', 'plocate'], array_keys($status['engines']));
+        $this->assertSame([
+            ['root' => $this->directory . '/documents', 'engine' => 'plocate']
+        ], $status['routes']);
     }
 
-    public function test__search_without_available_engines_returns_errors(): void
+    public function test__automatic_search_uses_plocate_for_native_root(): void
     {
         putenv('PATH=' . $this->directory . '/missing');
         try {
@@ -83,7 +86,25 @@ final class Test extends \PHPUnit\Framework\TestCase
 
         $this->assertNull($result['engine']);
         $this->assertSame(0, $result['count']);
-        $this->assertSame(['everything', 'plocate'], array_keys($result['errors']));
+        $this->assertSame(['plocate'], array_keys($result['errors']));
+    }
+
+    public function test__automatic_search_uses_everything_for_mapped_root(): void
+    {
+        $result = searchhelper::create([
+            'roots' => [$this->directory . '/documents'],
+            'engines' => ['everything', 'plocate'],
+            'everything_url' => '',
+            'everything_username' => '',
+            'everything_password' => '',
+            'path_mappings' => [
+                'C:\\Documents' => $this->directory . '/documents'
+            ],
+            'command_timeout' => 2
+        ])->searchFiles(query: 'project');
+
+        $this->assertSame(['everything'], array_keys($result['errors']));
+        $this->assertSame([], $result['engines']);
     }
 
     public function test__tool_throws_when_all_engines_fail(): void

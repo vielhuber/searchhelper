@@ -47,6 +47,10 @@ MCP_TOKEN=
 
 `SEARCHHELPER_ROOTS` is the final search allowlist. Everything and plocate may index more files, but searchhelper only returns results below these roots. use focused roots like `/host/data/documents`.
 
+when both engines are enabled, searchhelper selects the engine per root automatically: roots with a Windows path mapping use Everything; native Linux roots use plocate. results from all selected engines are merged, deduplicated and sorted. callers only provide the query and optional result limit.
+
+when only one engine is enabled, that engine is used for every root. Everything still requires a path mapping for each root and never falls back to an unrestricted global host search.
+
 `SEARCHHELPER_PATH_MAPPINGS` is only needed for Everything. Everything returns Windows paths, while code running in Docker/WSL usually needs Linux paths.
 
 `SEARCHHELPER_COMMAND_TIMEOUT` (seconds, default `10`) caps each backend call — the Everything HTTP request and the `plocate` command. raise it when the Everything host is reachable but slow (e.g. under load); lower it to fail faster.
@@ -92,7 +96,7 @@ apt-get install -y plocate
 updatedb
 ```
 
-searchhelper executes `plocate` where PHP runs. if the MCP server runs directly in WSL, WSL's `plocate` is used. installing `plocate` inside Docker only helps when the relevant files are on fast container-local or Linux-native mounts.
+searchhelper executes `plocate` where PHP runs. if the MCP server runs directly in WSL, WSL's `plocate` is used. in Docker, build the index after the relevant Linux-native volumes have been mounted; an index created while building the image cannot contain runtime mounts.
 
 ## mcp server
 

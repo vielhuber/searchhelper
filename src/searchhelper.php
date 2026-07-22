@@ -26,15 +26,7 @@ final class searchhelper
     public function searchFilesTool(string $query, ?int $limit = null): array
     {
         $result = $this->searchFiles(query: $query, limit: $limit ?? 100);
-        $configuredEngines = array_values(
-            array_filter(
-                array_unique(
-                    array_map(fn(mixed $engine): string => strtolower(trim((string) $engine)), $this->config['engines'])
-                ),
-                fn(string $engine): bool => $engine !== ''
-            )
-        );
-        if ($result['engine'] === null && count($result['errors']) === count($configuredEngines) && $configuredEngines !== []) {
+        if ($result['engines'] === [] && $result['errors'] !== []) {
             throw new RuntimeException('All configured search engines failed: ' . implode(' | ', $result['errors']));
         }
         return $result;
@@ -57,47 +49,51 @@ final class searchhelper
         $roots = $this->resolveRoots($root);
         $engines = $engine === null || $engine === '' ? $this->config['engines'] : [$engine];
         $started = microtime(true);
+        $engineElapsedMs = 0;
         $errors = [];
+        $items = [];
+        $successfulEngines = [];
 
-        foreach ($engines as $engine_name) {
-            $engine_name = strtolower(trim((string) $engine_name));
-            if ($engine_name === '') {
-                continue;
-            }
-
-            $engine_started = microtime(true);
+        foreach ($this->routeRoots($roots, $engines) as $engineName => $engineRoots) {
+            $engineStarted = microtime(true);
             try {
-                $items = match ($engine_name) {
-                    'everything' => $this->searchEverything(query: $query, roots: $roots, limit: $limit),
-                    'plocate' => $this->searchPlocate(query: $query, roots: $roots, limit: $limit),
-                    default => throw new RuntimeException('Unknown search engine: ' . $engine_name)
+                $engineItems = match ($engineName) {
+                    'everything' => $this->searchEverything(query: $query, roots: $engineRoots, limit: $limit),
+                    'plocate' => $this->searchPlocate(query: $query, roots: $engineRoots, limit: $limit),
+                    default => throw new RuntimeException('Unknown search engine: ' . $engineName),
                 };
-                if ($items !== []) {
-                    return [
-                        'engine' => $engine_name,
-                        'items' => array_slice($items, 0, $limit),
-                        'count' => min(count($items), $limit),
-                        'elapsed_ms' => $this->elapsedMs($started),
-                        'engine_elapsed_ms' => $this->elapsedMs($engine_started),
-                        'errors' => $errors
-                    ];
+                $successfulEngines[] = $engineName;
+                foreach ($engineItems as $item) {
+                    $items[$item['path']] = $item;
                 }
             } catch (Throwable $exception) {
-                $errors[$engine_name] = $exception->getMessage();
+                $errors[$engineName] = $exception->getMessage();
             }
+            $engineElapsedMs += $this->elapsedMs($engineStarted);
         }
 
+        $items = array_slice($this->sortResults(array_values($items)), 0, $limit);
+        $resultEngines = array_values(array_unique(array_column($items, 'engine')));
         return [
-            'engine' => null,
-            'items' => [],
-            'count' => 0,
+            'engine' => count($resultEngines) === 1 ? $resultEngines[0] : ($resultEngines === [] ? null : 'mixed'),
+            'engines' => array_values(array_unique($successfulEngines)),
+            'items' => $items,
+            'count' => count($items),
             'elapsed_ms' => $this->elapsedMs($started),
+            'engine_elapsed_ms' => $engineElapsedMs,
             'errors' => $errors
         ];
     }
 
     public function status(): array
     {
+        $routes = [];
+        foreach ($this->routeRoots($this->config['roots'], $this->config['engines']) as $engine => $roots) {
+            foreach ($roots as $root) {
+                $routes[] = ['root' => $root, 'engine' => $engine];
+            }
+        }
+
         return [
             'roots' => $this->config['roots'],
             'engines' => [
@@ -110,8 +106,36 @@ final class searchhelper
                     'command' => 'plocate'
                 ]
             ],
-            'path_mappings' => $this->config['path_mappings']
+            'path_mappings' => $this->config['path_mappings'],
+            'routes' => $routes
         ];
+    }
+
+    private function routeRoots(array $roots, array $engines): array
+    {
+        $engines = array_values(array_filter(array_unique(array_map(
+            fn(mixed $engine): string => strtolower(trim((string) $engine)),
+            $engines
+        )), fn(string $engine): bool => $engine !== ''));
+        $routes = [];
+
+        foreach ($roots as $root) {
+            $engine = count($engines) === 1
+                ? $engines[0]
+                : ($this->containerPathToWindows($root) === null ? 'plocate' : 'everything');
+            if (!in_array($engine, $engines, true)) {
+                continue;
+            }
+            $routes[$engine][] = $root;
+        }
+
+        foreach ($engines as $engine) {
+            if (!in_array($engine, ['everything', 'plocate'], true)) {
+                $routes[$engine] = $roots;
+            }
+        }
+
+        return $routes;
     }
 
     private function searchEverything(string $query, array $roots, int $limit): array
@@ -122,11 +146,11 @@ final class searchhelper
 
         $items = [];
         foreach ($roots as $root) {
-            $everything_query = $query;
             $windows_root = $this->containerPathToWindows($root);
-            if ($windows_root !== null) {
-                $everything_query = 'parent:"' . $windows_root . '" ' . $everything_query;
+            if ($windows_root === null) {
+                throw new RuntimeException('Everything path mapping is missing for root: ' . $root);
             }
+            $everything_query = 'parent:"' . $windows_root . '" ' . $query;
 
             $url = rtrim($this->config['everything_url'], '/') . '/?' . http_build_query([
                 'search' => $everything_query,
@@ -170,7 +194,6 @@ final class searchhelper
         if (!$this->commandExists('plocate')) {
             throw new RuntimeException('plocate command not found.');
         }
-
         $items = [];
         foreach ($this->tokens($query) as $token) {
             $command = [
